@@ -1,19 +1,18 @@
+#![allow(unexpected_cfgs)]
 
-mod states;
 mod instruction;
 mod processor;
+mod states;
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use processor::Processor;
+use solana_program::entrypoint;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+entrypoint!(process_instruction);
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub fn process_instruction(
+    program_id: &solana_program::pubkey::Pubkey,
+    accounts: &[solana_program::account_info::AccountInfo],
+    instruction_data: &[u8],
+) -> solana_program::entrypoint::ProgramResult {
+    Processor::process_instruction(program_id, accounts, instruction_data)
 }

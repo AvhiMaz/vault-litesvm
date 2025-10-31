@@ -3716,6 +3716,7 @@ dependencies = [
  "litesvm",
  "solana-program",
  "solana-sdk",
+ "solana-system-interface",
 ]
 
 [[package]]

@@ -1,8 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::account_info::next_account_info;
-use solana_program::example_mocks::solana_sdk::system_instruction;
+use solana_program::msg;
 use solana_program::program::invoke_signed;
 use solana_program::rent::Rent;
+use solana_system_interface::instruction::{create_account, transfer};
 use solana_program::sysvar::Sysvar;
 use solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
@@ -59,7 +60,7 @@ impl Processor {
             let rent_lamports = rent.minimum_balance(space);
 
             invoke_signed(
-                &system_instruction::create_account(
+                &create_account(
                     user_account.key,
                     vault_account.key,
                     rent_lamports,
@@ -83,15 +84,68 @@ impl Processor {
             vault_data.serialize(&mut &mut vault_account.data.borrow_mut()[..])?;
         }
 
+        invoke_signed(
+            &transfer(user_account.key, vault_account.key, amount),
+            &[user_account.clone(), vault_account.clone()],
+            &[],
+        )?;
+
+        let mut vault_data = VaultAccount::try_from_slice(&vault_account.data.borrow())?;
+        vault_data.balance = vault_data
+            .balance
+            .checked_add(amount)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        vault_data.serialize(&mut &mut vault_account.data.borrow_mut()[..])?;
+
         Ok(())
     }
 
     fn process_withdraw(
-        _program_id: &Pubkey,
-        _accounts: &[AccountInfo],
-        _amount: u64,
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        amount: u64,
     ) -> ProgramResult {
-        // TODO: withdraw logic here
+        let account_info_iter = &mut accounts.iter();
+
+        let user_account = next_account_info(account_info_iter)?;
+        let vault_account = next_account_info(account_info_iter)?;
+
+        if !user_account.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        }
+
+        let (vault_pda, _bump) = Pubkey::find_program_address(
+            &[VaultAccount::SEED, user_account.key.as_ref()],
+            program_id,
+        );
+
+        if !vault_pda.eq(vault_account.key) {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        let mut vault_data = VaultAccount::try_from_slice(&vault_account.data.borrow())?;
+
+        if vault_data.owner != *user_account.key {
+            return Err(ProgramError::IllegalOwner);
+        }
+
+        if vault_data.balance < amount {
+            return Err(ProgramError::InsufficientFunds);
+        }
+
+        **vault_account.try_borrow_mut_lamports()? -= amount;
+        **user_account.try_borrow_mut_lamports()? += amount;
+
+        vault_data.balance = vault_data.balance.checked_sub(amount).unwrap();
+        vault_data.serialize(&mut &mut vault_account.data.borrow_mut()[..])?;
+
+        msg!(
+            "Withdrew {} lamports. New balance: {}",
+            amount,
+            vault_data.balance
+        );
+
         Ok(())
     }
 }
