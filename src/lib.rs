@@ -1,8 +1,8 @@
 #![allow(unexpected_cfgs)]
 
-mod instruction;
-mod processor;
-mod states;
+pub mod instruction;
+pub mod processor;
+pub mod states;
 
 use processor::Processor;
 use solana_program::entrypoint;
