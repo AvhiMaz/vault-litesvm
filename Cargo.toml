@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-borsh = { version = "0.10.3", features = ["derive"] }
+borsh = "0.10.3"
 solana-program = "1.18.26"
 
 [dev-dependencies]

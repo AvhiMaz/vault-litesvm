@@ -5,6 +5,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    system_program,
     transaction::Transaction,
 };
 use vault_litesvm::{instruction::VaultIx, states::VaultAccount};
@@ -22,10 +23,7 @@ fn create_deposit_instruction(
         accounts: vec![
             AccountMeta::new(*user, true),
             AccountMeta::new(*vault_pda, false),
-            AccountMeta::new_readonly(
-                Pubkey::from_str_const("11111111111111111111111111111111"),
-                false,
-            ),
+            AccountMeta::new_readonly(system_program::id(), false),
         ],
         data: borsh::to_vec(&instruction_data).unwrap(),
     }
@@ -55,14 +53,8 @@ fn test_deposit_and_withdraw() {
 
     let program_id = Pubkey::new_unique();
 
-    let program_account = Account {
-        lamports: 1_000_000_000,
-        data: vec![],
-        owner: solana_sdk::bpf_loader::id(),
-        executable: true,
-        rent_epoch: 0,
-    };
-    let _ = svm.set_account(program_id, program_account);
+    let program_data = include_bytes!("../target/deploy/vault_litesvm.so");
+    svm.add_program(program_id, program_data);
 
     let user = Keypair::new();
     let user_pubkey = user.pubkey();
@@ -70,11 +62,11 @@ fn test_deposit_and_withdraw() {
     let user_account = Account {
         lamports: 10_000_000_000,
         data: vec![],
-        owner: Pubkey::from_str_const("11111111111111111111111111111111"),
+        owner: system_program::id(),
         executable: false,
         rent_epoch: 0,
     };
-    let _ = svm.set_account(user_pubkey, user_account);
+    svm.set_account(user_pubkey, user_account).unwrap();
 
     let (vault_pda, _bump) =
         Pubkey::find_program_address(&[VaultAccount::SEED, user_pubkey.as_ref()], &program_id);
@@ -205,18 +197,12 @@ fn test_deposit_and_withdraw() {
 
 #[test]
 fn test_unauthorized_withdrawal() {
-    // Initialize LiteSVM
     let mut svm = LiteSVM::new();
 
     let program_id = Pubkey::new_unique();
-    let program_account = Account {
-        lamports: 1_000_000_000,
-        data: vec![],
-        owner: solana_sdk::bpf_loader::id(),
-        executable: true,
-        rent_epoch: 0,
-    };
-    let _ = svm.set_account(program_id, program_account);
+
+    let program_data = include_bytes!("../target/deploy/vault_litesvm.so");
+    svm.add_program(program_id, program_data);
 
     let user1 = Keypair::new();
     let user2 = Keypair::new();
@@ -227,21 +213,20 @@ fn test_unauthorized_withdrawal() {
     let user1_account = Account {
         lamports: 10_000_000_000,
         data: vec![],
-        owner: Pubkey::from_str_const("11111111111111111111111111111111"),
+        owner: system_program::id(),
         executable: false,
         rent_epoch: 0,
     };
     let user2_account = Account {
         lamports: 10_000_000_000,
         data: vec![],
-        owner: Pubkey::from_str_const("11111111111111111111111111111111"),
+        owner: system_program::id(),
         executable: false,
         rent_epoch: 0,
     };
-    let _ = svm.set_account(user1_pubkey, user1_account);
-    let _ = svm.set_account(user2_pubkey, user2_account);
+    svm.set_account(user1_pubkey, user1_account).unwrap();
+    svm.set_account(user2_pubkey, user2_account).unwrap();
 
-    // User1's vault PDA
     let (vault_pda_user1, _) =
         Pubkey::find_program_address(&[VaultAccount::SEED, user1_pubkey.as_ref()], &program_id);
 
@@ -292,14 +277,9 @@ fn test_multiple_user_vaults() {
     let mut svm = LiteSVM::new();
 
     let program_id = Pubkey::new_unique();
-    let program_account = Account {
-        lamports: 1_000_000_000,
-        data: vec![],
-        owner: solana_sdk::bpf_loader::id(),
-        executable: true,
-        rent_epoch: 0,
-    };
-    let _ = svm.set_account(program_id, program_account);
+
+    let program_data = include_bytes!("../target/deploy/vault_litesvm.so");
+    svm.add_program(program_id, program_data);
 
     let users: Vec<Keypair> = (0..3).map(|_| Keypair::new()).collect();
 
@@ -311,11 +291,11 @@ fn test_multiple_user_vaults() {
         let user_account = Account {
             lamports: 10_000_000_000,
             data: vec![],
-            owner: Pubkey::from_str_const("11111111111111111111111111111111"),
+            owner: system_program::id(),
             executable: false,
             rent_epoch: 0,
         };
-        let _ = svm.set_account(user_pubkey, user_account);
+        svm.set_account(user_pubkey, user_account).unwrap();
 
         let (vault_pda, _) =
             Pubkey::find_program_address(&[VaultAccount::SEED, user_pubkey.as_ref()], &program_id);
@@ -323,7 +303,7 @@ fn test_multiple_user_vaults() {
         println!("\nUser {}: {}", i + 1, user_pubkey);
         println!("Vault PDA: {}", vault_pda);
 
-        let deposit_amount = (i as u64 + 1) * 500_000_000; // 0.5, 1, 1.5 SOL
+        let deposit_amount = (i as u64 + 1) * 500_000_000;
 
         let deposit_ix =
             create_deposit_instruction(&program_id, &user_pubkey, &vault_pda, deposit_amount);
@@ -346,7 +326,7 @@ fn test_multiple_user_vaults() {
         assert_eq!(vault_state.balance, deposit_amount);
         assert_eq!(vault_state.owner, user_pubkey);
 
-        println!("User {} deposited {} lamports", i + 1, deposit_amount);
+        println!("ser {} deposited {} lamports", i + 1, deposit_amount);
     }
 
     println!("\nAll users have unique vaults with correct balances!");

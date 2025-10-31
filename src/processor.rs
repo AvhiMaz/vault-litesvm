@@ -3,7 +3,7 @@ use solana_program::account_info::next_account_info;
 use solana_program::msg;
 use solana_program::program::invoke_signed;
 use solana_program::rent::Rent;
-use solana_system_interface::instruction::{create_account, transfer};
+use solana_program::system_instruction;
 use solana_program::sysvar::Sysvar;
 use solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
@@ -60,7 +60,7 @@ impl Processor {
             let rent_lamports = rent.minimum_balance(space);
 
             invoke_signed(
-                &create_account(
+                &system_instruction::create_account(
                     user_account.key,
                     vault_account.key,
                     rent_lamports,
@@ -85,7 +85,7 @@ impl Processor {
         }
 
         invoke_signed(
-            &transfer(user_account.key, vault_account.key, amount),
+            &system_instruction::transfer(user_account.key, vault_account.key, amount),
             &[user_account.clone(), vault_account.clone()],
             &[],
         )?;
