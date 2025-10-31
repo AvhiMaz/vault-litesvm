@@ -11,5 +11,5 @@ pub struct VaultAccount {
 impl VaultAccount {
     pub const LEN: usize = 32 + 8 + 1;
 
-    pub const SEED: &'static str = "vault_account";
+    pub const SEED: &'static [u8] = b"vault";
 }
